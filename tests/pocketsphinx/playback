@@ -1,0 +1,2 @@
+mplayer -ao jack:port=in_jackaudiosrc0_1 $@
+

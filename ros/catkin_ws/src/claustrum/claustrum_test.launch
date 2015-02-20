@@ -1,0 +1,29 @@
+<!-- 
+This launch file runs the claustrum node and most of its functionality.
+-->
+
+<launch>
+  <node name="claustrum" pkg="claustrum" type="claustrum.py" respawn="true"/>
+
+  <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py" respawn="true"/>
+
+  <node name="recognizer" pkg="pocketsphinx" type="recognizer.py" output="screen" respawn="true">
+    <param name="lm" value="$(find pocketsphinx)/demo/athome.lm"/>
+    <param name="dict" value="$(find pocketsphinx)/demo/athome.dic"/>
+  </node>
+
+  <node name="talker_node" pkg="talker" type="talker.py" respawn="true"/>
+
+  <node name="uvc_camera" pkg="uvc_camera" type="uvc_camera_node">
+	<param name="_device" value="/dev/video0"/>
+  </node>
+
+  <node name="image_tracker" pkg="image_tracker" type="image_tracker_node.py" respawn="true"/>
+
+  <node name="rosserial_python" pkg="rosserial_python" type="serial_node.py">
+  	<param name="port" value="/dev/ttyACM0"/>
+  </node>
+
+  <node name="keyboard" pkg="keyboard" type="keyboard"/>
+
+</launch>

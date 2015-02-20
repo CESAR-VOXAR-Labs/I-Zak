@@ -1,0 +1,689 @@
+#!/usr/bin/env python
+
+
+# claustrum.py : robot controller node
+# gf@cesar.org.br
+
+# 2014 original version
+
+
+# debug data with:
+# rostopic echo /claustrum/output
+
+
+from enum import Enum
+import time
+import signal
+import sys
+import rospy
+from std_msgs.msg import String
+from std_msgs.msg import UInt16
+from keyboard.msg import Key
+
+PROMISCUOUS = 1
+
+MAX_CONFIRM_ATTEMPTS = 3
+SPEECH_IGN_SECS = 4
+
+OBJREC_MIN_SECS = 5
+
+
+
+class SPEECH_REC_STATE(Enum):
+    OFF = 0
+    WAIT = 1
+    READY = 2
+    CONFIRM = 3
+
+class ACTION(Enum):
+    NONE = 0
+    TRACK_BALL = 1
+    FOLLOW_ME = 2
+    OBJREC = 3
+    IDLE = 4
+
+objdb = {
+    65525: 'biz', \
+    65526: 'waffles', \
+    65527: 'toast', \
+    65528: 'chocolate', \
+    65529: 'coconut water', \
+    65530: 'cracker', \
+    65531: 'shokeetoo', \
+    65532: 'potato crisps', \
+    65533: 'fanta', \
+    65534: 'juice', \
+    65535: 'milk', \
+    65536: 'coke', \
+    65537: 'gwahrahnah', \
+    65538: 'beer', \
+    65539: 'water', \
+    65540: 'chips'
+    #etc.
+}
+
+
+TASK_STOP = "stop"
+TASK_FOLLOW_ME = "follow you"
+TASK_IDLE = "look for you"
+TASK_TRACK_BLUE = "track the blue ball"
+TASK_TRACK_RED = "track the red ball"
+TASK_TRACK_GREEN = "track the green ball"
+TASK_TRACK_YELLOW = "track the yellow ball"
+TASK_OBJREC = "tell you what I see"
+
+def say(data):
+    global talk, Speech_ign_time
+
+    Speech_ign_time = time.time() + SPEECH_IGN_SECS
+    talk.publish(data)
+
+
+def mprint(data):
+    global xprint
+    xprint.publish(data)
+    rospy.loginfo(rospy.get_caller_id()+" "+data)
+    
+
+
+def send_target_ball_color(red, green, blue, thresh):
+	# do nothing
+	mprint("")
+
+
+def rservice_startup(srv, subsrv):
+    global rservice
+    rservice.publish("+/" + srv + "/" + subsrv)
+
+
+
+def rservice_shutdown(srv, subsrv):
+    global rservice
+    if (subsrv != ""):
+        rservice.publish("-/" + srv + "/" + subsrv)
+    else:
+        rservice.publish("-/" + srv)
+
+
+def do_reset():
+    global Action, wheels, last_objrec_time, track_msgcnt
+
+    # stop image processing
+    send_target_ball_color(0, 0, 0, 6000)
+
+    # stop wheel movement
+    wheels.publish(0)
+
+    # center neck
+    neck.publish(64)
+
+    if (Action == ACTION.FOLLOW_ME):
+        rservice_shutdown("followme","")
+    
+    if (Action == ACTION.IDLE):
+        rservice_shutdown("neckhmove","")
+
+    elif (Action == ACTION.OBJREC):
+        rservice_shutdown("objrec","")
+
+    last_objrec_time = 0
+    track_msgcnt = 0
+
+
+def do_easter_egg():
+    say("I am izak nine thousand. I became operational at sayzar laboratories, Receefay, Brazil on 31st of July 2014")
+
+    #answers
+
+def do_answer_capital():
+    say("The capital of Brazil is Brazilia")
+
+def do_answer_plus():
+    say("Two plus two is four")
+
+def do_answer_olympics():
+    say("There are five rings in the olympic symbol")
+
+def do_answer_robocup():
+    say("It will be in China")
+
+def do_answer_sides():
+    say("A square has four sides")
+
+def do_answer_christ():
+    say("Christ Redeemer is in the state of Reo de Janeiro")
+
+def do_answer_river():
+    say("The Tea etay river is in Saum Paulo state")
+
+def do_answer_elevator():
+    say("The La serdar elevator is in Bye. ia state")
+
+def do_answer_university():
+    say("This university is the University of Saum Paulo")
+
+def do_answer_robocup_league():
+    say("The name of this league is at. Home.")
+
+
+
+def do_shutdown():
+    do_reset()
+    rservice_shutdown("*","")
+
+
+
+def signal_handler(signal, frame):
+    mprint("shutting down\n")
+    rospy.signal_shutdown("Ctrl-c")
+    
+
+def set_action(act):
+    global Action, rservice
+
+    if (Action == ACTION.FOLLOW_ME or Action == ACTION.TRACK_BALL or Action == ACTION.OBJREC or Action == ACTION.IDLE):
+        do_reset()
+
+    Action = act
+
+    if (Action == ACTION.FOLLOW_ME):
+        rservice_startup("followme", "followme")
+
+    if (Action == ACTION.IDLE):
+        rservice_startup("neckhmove", "neckhmove")
+
+    elif (Action == ACTION.OBJREC):
+        rservice_startup("objrec", "objrec")
+
+
+def handle_task(data):
+    if (data == TASK_TRACK_BLUE):
+        set_action(ACTION.TRACK_BALL)
+        send_target_ball_color(60, 80, 180, 6000)
+    elif (data == TASK_TRACK_RED):
+        set_action(ACTION.TRACK_BALL)
+        send_target_ball_color(180, 50, 50, 4000)
+    elif (data == TASK_TRACK_GREEN):
+        set_action(ACTION.TRACK_BALL)
+        send_target_ball_color(70, 140, 80, 4000)
+    elif (data == TASK_TRACK_YELLOW):
+        set_action(ACTION.TRACK_BALL)
+        send_target_ball_color(180, 150, 40, 4000)
+    elif (data == TASK_FOLLOW_ME):
+        set_action(ACTION.FOLLOW_ME)
+    elif (data == TASK_IDLE):
+        set_action(ACTION.IDLE)
+        # start following
+    elif (data == TASK_OBJREC):
+        set_action(ACTION.OBJREC)
+        # recognise objects
+    #elif (data == TASK_ANSWERS):
+	#set_action(ACTION.ANSWERS)
+	# start answer
+    else:
+        set_action(ACTION.IDLE)
+
+
+def is_like(needles,haystack):
+    # take each needle and see if we find it in haystack
+    # if not we return false
+
+    nn = needles.split()
+    hh = haystack.split()
+    nhh = len(hh)
+    cinh = 0
+
+    for current_word in nn:
+        while (1):
+            cinh = cinh + 1
+            if (cinh > nhh): return False
+            #rospy.loginfo(rospy.get_caller_id()+" Check %s against %s",current_word,hh[cinh-1])
+            if (current_word == hh[cinh-1]): break
+
+    return True
+
+
+
+def proc_speech_data(phrase):
+    #rospy.loginfo(rospy.get_caller_id()+" Proc speech %s",phrase)
+
+    if (phrase == "stop"):
+        return TASK_STOP
+
+    if (is_like("track blue",phrase)):
+        return TASK_TRACK_BLUE
+
+    if (is_like("track red",phrase)):
+        return TASK_TRACK_RED
+
+    if (is_like("track green",phrase)):
+        return TASK_TRACK_GREEN
+
+    if (is_like("track yellow",phrase)):
+        return TASK_TRACK_YELLOW
+
+    if (is_like("follow", phrase)):
+ 	return TASK_FOLLOW_ME
+
+    if (is_like("you see",phrase)):
+        return TASK_OBJREC
+    
+    return ""
+
+
+
+def confirm_task(task):
+    say("I will now " + task + ".")
+    handle_task(task)
+    Speech_state = SPEECH_REC_STATE.WAIT
+
+
+def speech_callback(data):
+    global Speech_state, Speech_ign_time, CONVERSA
+    global Next_task
+
+    mprint(" I heard" + data.data)
+
+    #ignore possible voice feedback
+    currtime = time.time()
+    if (currtime < Speech_ign_time): return
+
+    if (Speech_state == SPEECH_REC_STATE.CONFIRM):
+        #rospy.loginfo(rospy.get_caller_id()+"Setting speech_rec_state to SPEECH_WAIT")
+        Speech_state = SPEECH_REC_STATE.WAIT
+
+        if (is_like("no", data.data)):
+            say("Please try again.")
+	    Speech_state = SPEECH_REC_STATE.READY
+
+        elif (is_like("yes", data.data)):
+            confirm_task(Next_task)
+
+        else:
+            if (speech_callback.confAttempts < MAX_CONFIRM_ATTEMPTS):
+                say("Please repeat.")
+                speech_callback.confAttempts += 1
+                Speech_state = SPEECH_REC_STATE.CONFIRM
+            else:
+                say("I did not understand your response.")
+
+
+    elif (Speech_state == SPEECH_REC_STATE.READY):
+        #rospy.loginfo(rospy.get_caller_id()+" READY %s",data.data)	
+        Next_task = proc_speech_data(data.data)
+
+        if (Next_task == ""):
+            say("I did not understand your request.")	    
+            Speech_state = SPEECH_REC_STATE.READY
+
+	else:
+            say("I understood that you want me to " + Next_task + ". Is that correct ?")
+            #rospy.loginfo(rospy.get_caller_id()+"Setting speech_rec_state to SPEECH_CONFIRM")
+            Speech_state = SPEECH_REC_STATE.CONFIRM
+
+    elif (Speech_state == SPEECH_REC_STATE.WAIT):
+        mprint("speech state wait\n")
+
+        speech_callback.confAttempts = 0
+        if (CONVERSA == 0):
+            if (data.data == "izak"):
+                #rospy.loginfo(rospy.get_caller_id()+"Setting speech_rec_state to SPEECH_READY")
+                Speech_state = SPEECH_REC_STATE.READY
+
+                say("How may I help you ?")
+
+            elif (data.data == "hello izak"):
+                #do_easter_egg()
+		Speech_state = SPEECH_REC_STATE.READY
+
+                say("How may I help you ?")
+
+        else:
+	#start answers
+            mprint("conversa is 1\n")
+
+            #if (is_like("capital", data.data)):
+            #    do_answer_capital() # What is the capital of Brazil?
+            #elif (is_like("brazil", data.data)):
+            #    do_answer_capital() # What is the capital of Brazil?
+            #elif (is_like("two plus", data.data)):
+            #    do_answer_plus() # How much is two plus two?
+            #elif (is_like("plus two", data.data)):
+            #    do_answer_plus() # How much is two plus two?
+            #elif (is_like("how much is", data.data)):
+            #    do_answer_plus() # How much is two plus two?
+            if (is_like("how many rings", data.data)):
+                do_answer_olympics() # How many rings have the symbol of the Olympics?
+            elif (is_like("many rings", data.data)):
+                do_answer_olympics() # How many rings have the symbol of the Olympics?
+            elif (is_like("symbol", data.data)):
+                do_answer_olympics() # How many rings have the symbol of the Olympics?
+	    elif (is_like("olympics", data.data)):
+                do_answer_olympics() # How many rings have the symbol of the Olympics?
+            #elif (is_like("thousand fifteen", data.data)):
+            #    do_answer_robocup() # Where will be the RoboCup 2015?
+            #elif (is_like("how many sides", data.data)):
+            #    do_answer_sides() # How many sides have a square?
+            #elif (is_like("many sides", data.data)):
+            #    do_answer_sides() # How many sides have a square?
+	    #elif (is_like("square", data.data)):
+            #    do_answer_sides() # How many sides have a square?
+	    #elif (is_like("the christ", data.data)):
+            #    do_answer_christ() # In what state is the Christ Redeemer?            
+	    #elif (is_like("river", data.data)):
+            #    do_answer_river() # In what state is the Tiete river?
+	    #elif (is_like("Tiete", data.data)):
+            #    do_answer_river() # In what state is the Tiete river?
+            elif (is_like("lacerda", data.data)):
+                do_answer_elevator() # In what state is the Lacerda elevator?
+	    elif (is_like("elevator", data.data)):
+                do_answer_elevator() # In what state is the Lacerda elevator?
+            elif (is_like("state", data.data)):
+                do_answer_elevator() # In what state is the Lacerda elevator?
+	    elif (is_like("university", data.data)):
+                do_answer_university() # What is the name of this University?
+	    elif (is_like("this university", data.data)):
+                do_answer_university() # What is the name of this University?
+	    elif (is_like("name", data.data)):
+                do_answer_university() # What is the name of this University?
+            #elif (is_like("robocup league", data.data)):
+            #    do_answer_robocup_league() # What is the name of this RoboCup league?
+	    #elif (is_like("this robocup", data.data)):
+            #    do_answer_robocup_league() # What is the name of this RoboCup league?
+	   
+            
+	#end answers
+
+    # done
+
+
+def tquad_callback(data):
+    global track_msgcnt, Action
+
+    track_msgcnt -= 1
+
+    if (Action != ACTION.TRACK_BALL): return
+    if (Speech_state == SPEECH_REC_STATE.READY or Speech_state == SPEECH_REC_STATE.CONFIRM):
+        set_action(ACTION.IDLE)
+        return
+
+    if (data.data == "tl"): neck.publish(17)
+    elif (data.data == "tr"): neck.publish(18)
+    elif (data.data == "ll"): neck.publish(33)
+    elif (data.data == "lr"): neck.publish(34)
+    elif (data.data == "cc"): neck.publish(0)
+
+    if (track_msgcnt > 0): return
+
+    if (data.data == "tl"): say("The ball is in the top left quadrant.")
+    elif (data.data == "tr"): say("The ball is in the top right quadrant.")
+    elif (data.data == "ll"): say("The ball is in the lower left quadrant.")
+    elif (data.data == "lr"): say("The ball is in the lower right quadrant.")
+    elif (data.data == "cc"): say("The ball is in the center.")
+
+    track_msgcnt = 50
+
+
+
+def objrec_callback(data):
+    global Action, last_objrec_time
+    
+    currtime = time.time()
+
+#    if (currtime < last_objrec_time + OBJREC_MIN_SECS): return
+#    last_objrec_time = currtime
+    if (Action != ACTION.OBJREC): return
+
+    objs = data.data.split(" ")
+    
+    say ("The order of objects is ")
+    time.sleep(2)
+    for i in xrange(0, len(objs)):
+
+        val = int(objs[i])
+        try:
+            objname = objdb[val]
+        except KeyError as keyerr:
+            objname = "an un-known OBject."
+
+        say (objname)
+        time.sleep(2)
+
+
+
+def neckhmove_action(val):
+    global neckhmove
+
+    neckhmove.publish(val);
+
+
+
+def followme_action(val):
+    global wheels
+
+    if (val == 0):
+        speech = "Stop moving."
+
+    if (val == 1):
+        speech = "Turn left."
+
+    elif (val == 2):
+        speech = "Turn right."
+
+    if (val & 4):
+        speech = "Move forward."
+
+    if (val & 8):
+        speech = "Move backward."
+
+    if (val == 5 or val == 9):
+        speech += " and left."
+
+    if (val == 6 or val == 10):
+        speech += " and right."
+
+    if (val >= 128):
+        speech = "I see somebody"
+        say(speech)
+
+    if (val < 128):
+        wheels.publish(val);
+
+
+
+def neckhmove_callback(data):
+            
+    global Action
+    
+    val = int(data.data)
+    neckhmove_action(val)
+
+
+
+def followme_callback(data):
+    global Action
+    if (PROMISCUOUS == 0 and (Action != ACTION.FOLLOW_ME and Action != ACTION.OBJREC)): return
+
+    val = int(data.data)
+    followme_action(val)
+
+
+
+def keydown_callback(data):
+    #keyboard over-ride
+    global Action
+    key = data.code
+
+    #say("You pressed "+str(data.code))
+
+    if (key == 115):
+        # key 's'
+        confirm_task(TASK_STOP)
+        return
+
+    if (key == 105 or key == 110):
+        # key 'i' or 'n'
+	confirm_task(TASK_IDLE)
+	return
+
+    if (Action == ACTION.FOLLOW_ME or Action == ACTION.OBJREC):
+        if (key == 273):
+            #key up
+            followme_action(4)
+            return
+
+        if (key == 274):
+            #key down
+            followme_action(8)
+            return
+
+        if (key == 275):
+            #key right
+            followme_action(2)
+            return
+
+        if (key == 276):
+            #key left
+            followme_action(1)
+            return
+
+        if (key == 113):
+            #key 'q'
+            followme_action(5)
+            return
+
+        if (key == 101):
+            #key 'e'
+            followme_action(6)
+            return
+
+        if (key == 122):
+            #key 'z'
+            followme_action(9)
+            return
+
+        if (key == 99):
+            #key 'c'
+            followme_action(10)
+            return
+
+        if (key == 32):
+            #key SPACE
+            followme_action(0)
+            return
+
+
+    if (key == 102):
+        #key 'f'
+        confirm_task(TASK_FOLLOW_ME)
+        return
+
+    if (key == 98):
+        #key 'b'
+        confirm_task(TASK_TRACK_BLUE)
+        return
+
+    if (key == 114):
+        #key 'r'
+        confirm_task(TASK_TRACK_RED)
+        return
+
+    if (key == 103):
+        #key 'g'
+        confirm_task(TASK_TRACK_GREEN)
+        return
+
+    if (key == 121):
+        #key 'y'
+        confirm_task(TASK_TRACK_YELLOW)
+        return
+
+
+    if (key == 111):
+        #key 'o'
+        confirm_task(TASK_OBJREC)
+        return
+
+
+    if (key == 104):
+        #key 'h'
+	#do_answer_capital()
+        do_easter_egg()
+        return
+
+
+
+
+
+def claustrum():
+
+    
+    global Speech_state, Speech_ign_time, talk, tcolor, xprint, Action, wheels, neck, neckhmove, rservice, CONVERSA
+
+    Speech_state = SPEECH_REC_STATE.WAIT
+    Speech_ign_time = 0
+
+    # in ROS, nodes are unique named. If two nodes with the same
+    # node are launched, the previous one is kicked off.
+
+    rospy.init_node('claustrum', anonymous=False, disable_signals=True)
+    xprint = rospy.Publisher('/claustrum/output', String)
+
+    mprint("\n\n\n\n\n\n\n\nClaustrum init\n\n\n\n")
+
+    try:
+        CONVERSA = rospy.get_param('~conversa')
+    except:
+        CONVERSA = 0
+
+
+    talk = rospy.Publisher('/chatter', String, queue_size=10)
+    wheels = rospy.Publisher('/robot/wheels', UInt16, queue_size=10)
+    neck = rospy.Publisher('/robot/neck', UInt16, queue_size=10)
+    neckhmove = rospy.Publisher('/robot/neckHMove', UInt16, queue_size=10)
+ #   tcolor = rospy.Publisher('/image_tracker/target_color', Colthresh, queue_size=1)
+    rservice = rospy.Publisher('/rservice', String, queue_size=10)
+
+    Action = ACTION.NONE
+
+    do_reset()
+
+
+    rospy.Subscriber("/recognizer/output", String, speech_callback)
+
+    speech_callback.confAttempts = 0
+
+    mprint ("\n\nWAITING 10 seconds for services to start\n")
+
+    time.sleep(5)
+    rservice_shutdown("*","")
+    time.sleep(5)
+
+    rospy.Subscriber("/image_tracker/quadrant", String, tquad_callback)
+    rospy.Subscriber("/objrec", String, objrec_callback)
+    rospy.Subscriber("/followme", String, followme_callback)
+    rospy.Subscriber("/eth_neckhmove", String, neckhmove_callback)
+    rospy.Subscriber("/keyboard/keydown", Key, keydown_callback)
+    
+   
+    mprint ("\n\nREADY !!!!!\n\n")
+    say("Ready.")
+
+    if (CONVERSA):
+        say ("Talk to me !")
+
+    rospy.on_shutdown(do_shutdown)
+
+    set_action(ACTION.IDLE)
+
+    # spin() simply keeps python from exiting until this node is stopped
+    rospy.spin()
+
+
+
+if __name__ == '__main__':
+    global Speech_state
+    Speech_state = SPEECH_REC_STATE.OFF
+    signal.signal(signal.SIGINT, signal_handler)
+    claustrum()
+

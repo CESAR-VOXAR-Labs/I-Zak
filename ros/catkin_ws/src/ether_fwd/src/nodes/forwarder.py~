@@ -1,0 +1,302 @@
+#!/usr/bin/env python
+# license removed for brevity
+import socket, select, time
+import rospy
+import errno
+from std_msgs.msg import String
+from socket import error as socket_error
+
+HOST_R = '' # Use all interfaces
+PORT_R = 49001
+
+HOST_W = '192.168.1.64'
+#HOST_W = '127.0.0.1'
+#HOST_W = '172.27.69.193'
+PORT_W = 49002
+
+
+
+#list of messageTypes
+# REMOTE -> LOCAL
+FOLLOWME = 0x4E01
+OBJREC = 0x4E03
+NECKHMOVE = 0x4E05
+
+# LOCAL -> REMOTE
+RSERVICE = 0x8001
+
+
+
+def init_sockets():
+    global sockr, sockw
+    # open a reader socket on UDP port PORT_R
+    sockr = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sockr.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # ignore TIME_WAIT on socket
+    sockr.setblocking(0) # set non-blocking
+    sockr.bind((HOST_R,PORT_R))
+
+    # open a writer socket on UDP port PORT_W
+    sockw = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    sockw.connect((HOST_W, PORT_W))
+
+
+def read_socket():
+    global sockr
+    ready = select.select([sockr], [], [], 0)
+    if (ready[0]):
+        # data is ready, read it; append it to xval, which is whatever remained from last time
+        return xval + sockr.recv(512)
+    return xval
+
+
+def write_socket(msg, msglen):
+    global sockw
+
+    try:
+        sockw.sendall(msg)
+    except socket_error as serr:
+        if serr.errno == errno.ECONNREFUSED:
+            print "Conn error"
+
+
+def close_sockets():
+    global sockr, sockw
+    sockr.close
+    sockw.close
+
+
+def checksum(val):
+    return (255 - val) % 256
+
+
+def addstring(string):
+    tot = 0
+    strlen = len(string)
+    for i in xrange(0, strlen):
+        tot += ord(string[i])
+    return tot
+
+
+def socketbuff(val):
+    global sbuff
+    sbuff = sbuff + chr(val)
+
+
+def socketbuff_string(string):
+    global sbuff
+    sbuff = sbuff + string + '\x00'
+
+
+def socketsend(data):
+    write_socket(data, len(data))
+    
+
+
+def parse_data(val):
+    # parse message data
+    # here we will use the same format as for rosserial messages
+    #
+    # see: http://wiki.ros.org/rosserial/Overview/Protocol
+
+    global followmePub, objrecPub, xval
+
+    while len(val) >= 8:
+
+        data = ""
+
+        s = list(val) # convert val (string) to s (array of char)
+
+        if (ord(s[0]) != 0xFF): 
+            xval = val[1:]
+            return # sync start
+
+        if (ord(s[1]) != 0xFD): 
+            xval = val[1:]
+            return # protocol
+    
+        dlen = ord(s[2]) + ord(s[3]) * 256 # data length
+
+        cksum = checksum(ord(s[2]) + ord(s[3]))
+        if (cksum != ord(s[4])):
+            xval = val[2:]
+            return # datalength checksum
+
+        # the message type
+        mtype = ord(s[5]) + ord(s[6]) * 256
+    
+        if (mtype == FOLLOWME):
+            xlen = 1 # data length in bytes
+            topic = followmePub # topic to republish on
+
+	elif (mtype == NECKHMOVE):
+            xlen = 1 # data length in bytes
+            topic = neckhmovePub # topic to republish on
+
+        elif (mtype == OBJREC):
+            xlen = dlen
+            topic = objrecPub # topic to republish on
+
+        else:
+            topic = ""
+
+        msglen = xlen + 8
+        xval = val[msglen:]
+
+        if (len(val) < msglen):
+            xval = val
+            return # invalid message length (try to read more)
+
+        if (topic != ""):
+            if (dlen != xlen): return # invalid data length
+
+        tot = ord(s[5]) + ord(s[6])
+        for i in xrange(7, 7 + dlen):
+            tot += ord(s[i])
+
+        cksum = checksum(tot)
+        if (cksum != ord(s[7 + dlen])): return # msgtype + data checksum
+
+        # package data for sending depending on message type
+        if (mtype == FOLLOWME):
+            data = str(ord(s[7]))
+            #print 'msgtype is FOLLOWME: sending ',data
+
+	elif (mtype == NECKHMOVE):
+            data = str(ord(s[7]))
+            #print 'msgtype is NECKHMOVE: sending ',data
+
+        elif (mtype == OBJREC):
+            for i in xrange(0, dlen/4):
+                val = str(ord(s[7+i*4]) + (ord(s[8+i*4])<<8) + (ord(s[9+i*4])<<16) + (ord(s[10+i*4])<<24))
+                if (data == ""):
+                    data = str(val)
+                else:
+                    data = data + " " + str(val)
+            #print 'msgtype is OBJREC: sending ',data
+
+        if (topic != ""):
+            #publish data on correct topic
+            topic.publish(data)
+    
+        # if any more data in packet, process it
+        val = xval
+
+
+
+def send_header(msglen, topicID):
+    socketbuff(0xFF)
+    socketbuff(0xFD)
+    socketbuff(msglen % 256)
+    socketbuff(msglen >> 8)
+    
+    cksum = checksum(msglen)
+    socketbuff(cksum)
+
+    socketbuff(topicID & 0xFF)
+    socketbuff(topicID >> 8)
+
+
+
+
+def rserv_cb(data):
+    global sbuff
+
+    sbuff = ""
+    
+    df = data.data.split('/')
+
+    if (df[0] == "+"):
+        if (len(df) < 3):
+            return
+
+        msglen = 3 + len(df[1]) + len(df[2])
+
+        send_header(msglen, RSERVICE) # send sync, protocol #, msglen, msglen checksum,  and topic ID
+
+        # send data packet
+        socketbuff(0x01) # startup
+        socketbuff_string(df[1]) # send NULL terminated string
+        socketbuff_string(df[2]) # send NULL terminated string
+
+        # send data / topic ID checksum
+        x = (RSERVICE & 0xFF) + (RSERVICE >> 8) + 0x01
+        x += addstring(df[1])
+        x += addstring(df[2])
+
+        cksum = checksum(x)
+        socketbuff(cksum)
+
+
+    elif (df[0] == "-"):
+        if (len(df) < 2):
+            return
+
+        if (len(df) == 3):
+            msglen = 3 + len(df[1]) + len(df[2])
+        else:
+            msglen = 2 + len(df[1])
+
+        send_header(msglen, RSERVICE) # send sync, protocol #, msglen, msglen checksum,  and topic ID
+
+        # send data packet
+        socketbuff(0x00) # shutdown
+        socketbuff_string(df[1]) # send NULL terminated string
+        if (len(df) == 3):
+            socketbuff_string(df[2]) # send NULL terminated string
+
+        # send data / topic ID checksum
+        x = (RSERVICE & 0xFF) + (RSERVICE >> 8)
+        x += addstring(df[1])
+        if (len(df) == 3):
+            x += addstring(df[2])
+
+        cksum = checksum(x)
+        socketbuff(cksum)
+
+    socketsend(sbuff)
+
+    print "Msg of length "+str(msglen)+" bytes sent."
+
+
+
+
+def forwarder():
+    global followmePub, objrecPub, neckhmovePub, xval
+
+    rospy.init_node('forwarder', anonymous=True)
+
+    print "STARTING..."
+
+    # init all topics to republish on here
+    followmePub = rospy.Publisher('/followme', String, queue_size=10)
+
+    # init all topics to republish on here
+    neckhmovePub = rospy.Publisher('/eth_neckhmove', String, queue_size=1)
+
+    # init all topics to republish on here
+    objrecPub = rospy.Publisher('/objrec', String, queue_size=1)
+
+    # init all topics to listen to here
+    rserviceSub = rospy.Subscriber('/rservice', String, rserv_cb)
+
+    init_sockets()
+
+    xval = ""
+
+    while not rospy.is_shutdown():
+        # read bytes from ether
+        str = read_socket()
+        if (str != ""): parse_data(str)
+        else: time.sleep(0.01)
+
+    close_sockets()
+
+
+
+if __name__ == '__main__':
+    try:
+        forwarder()
+    except rospy.ROSInterruptException: pass
+
+
+

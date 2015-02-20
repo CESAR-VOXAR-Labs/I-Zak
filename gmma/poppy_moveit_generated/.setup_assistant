@@ -1,0 +1,8 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: poppy
+    relative_path: urdf/poppy.urdf
+  SRDF:
+    relative_path: config/poppy.srdf
+  CONFIG:
+    generated_timestamp: 1422981856

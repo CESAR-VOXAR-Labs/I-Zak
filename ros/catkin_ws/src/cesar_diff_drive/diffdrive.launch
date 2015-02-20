@@ -1,0 +1,19 @@
+<launch>
+
+<!-- rosserial needs to come up first -->
+
+  <node name="rosserial_python" pkg="rosserial_python" type="serial_node.py">
+  	<param name="port" value="/dev/ttyUSB0"/>
+  </node>
+
+
+<!-- CESAR robot_state -->
+  <node name="cesar_robot_state" pkg="cesar_robot_state" type="robotstate.py" respawn="true"/>
+
+
+<!-- differential drive, comes after rosserial and robot_state -->
+<!--
+  <node name="diffdrive" pkg="cesar_diff_drive" type="cesar_diff_drive_node" respawn="true"/>
+-->
+
+</launch>

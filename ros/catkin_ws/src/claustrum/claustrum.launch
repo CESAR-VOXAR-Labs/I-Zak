@@ -1,0 +1,77 @@
+<!-- 
+This launch file runs the claustrum node and most of its functionality.
+-->
+
+<launch>
+
+<param name="robot_description" textfile="$(find poppy_description)/urdf/poppy.urdf"/>
+
+<!-- camera comes up -->
+
+<!--
+  <node name="uvc_camera" pkg="uvc_camera" type="uvc_camera_node" respawn="false">
+  	<param name="device" value="/dev/video1"/>
+  <remap from="/image_raw" to="/camera/image_raw" />
+  </node>
+
+
+  <node name="face_recognition" pkg="face_recognition" type="Fserver">
+  	<param name="add_face_number" value="50"/>
+  	<param name="confidence_value" value="0.9"/>
+  </node>
+  <node name="face_recognition_client" pkg="face_recognition" type="Fclient"/>
+-->
+
+<!-- claustrum node -->
+  <node name="claustrum" pkg="claustrum" type="claustrum.py" respawn="true">
+    <param name="conversa" value="0"/>
+  </node>
+
+
+<!-- robot state to publish tf -->
+  <node name="rsp" pkg="robot_state_publisher" type="robot_state_publisher" respawn="true" />
+
+
+<!-- rosserial needs to come up first, comment out if not connected to motors -->
+
+  <node name="rosserial_python" pkg="rosserial_python" type="serial_node.py">
+  	<param name="port" value="/dev/ttyUSB0"/>
+  	<param name="baud" value="115200"/>
+  </node>
+
+<!-- CESAR robot_state -->
+  <node name="cesar_robot_state" pkg="cesar_robot_state" type="robotstate.py" respawn="true"/>
+
+
+<!-- differential drive, comes after rosserial and robot_state -->
+
+  <node name="diffdrive" pkg="cesar_diff_drive" type="cesar_diff_drive_node" respawn="true"/>
+
+<!-- robot arm, comes up after robot_state, comment out if no arm connected -->
+
+<!--
+  <node name="arm" pkg="cesar_robot_arm" type="armcontrol.py" respawn="true">
+  	<param name="arm_port" value="/dev/ttyUSB1"/>
+  </node>
+-->
+
+  <node name="soundplay_node" pkg="sound_play" type="soundplay_node.py" respawn="true"/>
+
+  <node name="speech_synth" pkg="speech_synth" type="speechsynth.py" respawn="true"/>
+
+  <node name="recognizer" pkg="pocketsphinx" type="recognizer.py" output="screen" respawn="true">
+    <param name="lm" value="$(find pocketsphinx)/demo/athome.lm"/>
+    <param name="dict" value="$(find pocketsphinx)/demo/athome.dic"/>
+  </node>
+
+
+<!-- ether_fwd, comes after differential drive and robot_state -->
+
+
+<!-- comment out if no eth connected -->
+
+  <node name="ether_fwd" pkg="ether_fwd" type="forwarder.py" respawn="true"/>
+
+  <node name="keyboard" pkg="keyboard" type="keyboard"/>
+
+</launch>

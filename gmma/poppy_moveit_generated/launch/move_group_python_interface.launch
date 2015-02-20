@@ -1,0 +1,5 @@
+<launch>
+	<include file="$(find poppy_moveit_generated)/launch/demo.launch"/>
+	<node name="move_group_python_interface" pkg="poppy_moveit_generated" type="move_group_python_interface.py" respawn="false" output="screen">
+	</node>
+</launch>

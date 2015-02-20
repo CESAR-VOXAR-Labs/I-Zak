@@ -1,0 +1,11 @@
+controller_list:
+  - name: fake_arm_controller
+    joints:
+      - base_arm_to_base2
+      - base_to_shoulder
+      - shoulder_to_elbow
+      - elbow_to_wrist
+      - wrist_to_grip_base
+  - name: fake_gripper_controller
+    joints:
+      - grip_base_to_right_finger

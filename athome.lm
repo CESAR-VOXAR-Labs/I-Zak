@@ -1,0 +1,106 @@
+Language model created by QuickLM on Thu Jan 22 09:41:45 EST 2015
+Copyright (c) 1996-2010 Carnegie Mellon University and Alexander I. Rudnicky
+
+The model is in standard ARPA format, designed by Doug Paul while he was at MITRE.
+
+The code that was used to produce this language model is available in Open Source.
+Please visit http://www.speech.cs.cmu.edu/tools/ for more information
+
+The (fixed) discount mass is 0.5. The backoffs are computed using the ratio method.
+This model based on a corpus of 12 sentences and 22 words
+
+\data\
+ngram 1=22
+ngram 2=33
+ngram 3=28
+
+\1-grams:
+-0.9622 </s> -0.3010
+-0.9622 <s> -0.2464
+-1.4393 BALL -0.2509
+-2.0414 BLUE -0.2849
+-2.0414 DO -0.2971
+-2.0414 FETCH -0.2808
+-2.0414 FOLLOW -0.2971
+-2.0414 GREEN -0.2849
+-2.0414 HELLO -0.2931
+-2.0414 ME -0.2509
+-2.0414 NO -0.2509
+-2.0414 RED -0.2849
+-1.7404 ROBOT -0.2509
+-2.0414 SEE -0.2509
+-2.0414 STOP -0.2509
+-1.3424 THE -0.2808
+-2.0414 TOOTHPASTE -0.2509
+-1.4393 TRACK -0.2808
+-2.0414 WHAT -0.2971
+-2.0414 YELLOW -0.2849
+-2.0414 YES -0.2509
+-2.0414 YOU -0.2971
+
+\2-grams:
+-1.3802 <s> FETCH 0.0000
+-1.3802 <s> FOLLOW 0.0000
+-1.3802 <s> HELLO 0.0000
+-1.3802 <s> NO 0.0000
+-1.3802 <s> ROBOT 0.0000
+-1.3802 <s> STOP 0.0000
+-0.7782 <s> TRACK 0.0000
+-1.3802 <s> WHAT 0.0000
+-1.3802 <s> YES 0.0000
+-0.3010 BALL </s> -0.3010
+-0.3010 BLUE BALL 0.0000
+-0.3010 DO YOU 0.0000
+-0.3010 FETCH THE -0.2553
+-0.3010 FOLLOW ME 0.0000
+-0.3010 GREEN BALL 0.0000
+-0.3010 HELLO ROBOT 0.0000
+-0.3010 ME </s> -0.3010
+-0.3010 NO </s> -0.3010
+-0.3010 RED BALL 0.0000
+-0.3010 ROBOT </s> -0.3010
+-0.3010 SEE </s> -0.3010
+-0.3010 STOP </s> -0.3010
+-1.0000 THE BLUE 0.0000
+-1.0000 THE GREEN 0.0000
+-1.0000 THE RED 0.0000
+-1.0000 THE TOOTHPASTE 0.0000
+-1.0000 THE YELLOW 0.0000
+-0.3010 TOOTHPASTE </s> -0.3010
+-0.3010 TRACK THE -0.0792
+-0.3010 WHAT DO 0.0000
+-0.3010 YELLOW BALL 0.0000
+-0.3010 YES </s> -0.3010
+-0.3010 YOU SEE 0.0000
+
+\3-grams:
+-0.3010 <s> FETCH THE
+-0.3010 <s> FOLLOW ME
+-0.3010 <s> HELLO ROBOT
+-0.3010 <s> NO </s>
+-0.3010 <s> ROBOT </s>
+-0.3010 <s> STOP </s>
+-0.3010 <s> TRACK THE
+-0.3010 <s> WHAT DO
+-0.3010 <s> YES </s>
+-0.3010 BLUE BALL </s>
+-0.3010 DO YOU SEE
+-0.3010 FETCH THE TOOTHPASTE
+-0.3010 FOLLOW ME </s>
+-0.3010 GREEN BALL </s>
+-0.3010 HELLO ROBOT </s>
+-0.3010 RED BALL </s>
+-0.3010 THE BLUE BALL
+-0.3010 THE GREEN BALL
+-0.3010 THE RED BALL
+-0.3010 THE TOOTHPASTE </s>
+-0.3010 THE YELLOW BALL
+-0.9031 TRACK THE BLUE
+-0.9031 TRACK THE GREEN
+-0.9031 TRACK THE RED
+-0.9031 TRACK THE YELLOW
+-0.3010 WHAT DO YOU
+-0.3010 YELLOW BALL </s>
+-0.3010 YOU SEE </s>
+
+\end\

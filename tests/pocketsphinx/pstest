@@ -1,0 +1,1 @@
+~/ros/rharmony/pocketsphinx/nodes/recognizer_file.py _lm:=/home/robot/ros/rharmony/pocketsphinx/demo/athome.lm _dict:=/home/robot/ros/rharmony/pocketsphinx/demo/athome.dic
